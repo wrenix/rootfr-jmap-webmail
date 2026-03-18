@@ -5,8 +5,9 @@ RUN npm ci
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npx next build --webpack
+RUN npx next serve out
 
-FROM node:24-alpine AS runner
+FROM ghcr.io/nginx/nginx-unprivileged:1.29.3-alpine3.22-otel
 
 LABEL org.opencontainers.image.title="JMAP Webmail"
 LABEL org.opencontainers.image.description="Modern webmail client built with Next.js and the JMAP protocol"
@@ -15,19 +16,5 @@ LABEL org.opencontainers.image.url="https://github.com/root-fr/jmap-webmail"
 LABEL org.opencontainers.image.licenses="MIT"
 LABEL org.opencontainers.image.vendor="root.cloud"
 
-WORKDIR /app
-ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
-RUN apk upgrade --no-cache && \
-    npm uninstall -g npm && \
-    rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npx && \
-    addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 nextjs
-COPY --from=builder /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-USER nextjs
-EXPOSE 3000
-ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
-CMD ["node", "server.js"]
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder /app/out /usr/share/nginx/html/
